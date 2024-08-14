@@ -10,7 +10,7 @@ AXIS2 = 2
 
 def get_top_from_root(top, root):
     '''
-    从top改为root坐标
+    change axis from top to root
     '''
     node = FBFindModelByLabelName(top)
     v = np.asmatrix([0, 0, 1]).T
@@ -20,16 +20,14 @@ def get_top_from_root(top, root):
         cos = math.cos(node_parent.Rotation[AXIS2]/180*math.pi)
         sin = math.sin(node_parent.Rotation[AXIS2]/180*math.pi)
         l = math.sqrt(node.Translation[AXIS0]**2 + node.Translation[AXIS1]**2)
-        mat = np.array([[cos, -sin, l*cos], [sin, cos, l*sin], [0, 0, 1]])@mat
+        mat = np.dot(np.array([[cos, -sin, l*cos], [sin, cos, l*sin], [0, 0, 1]]), mat)
         node = node_parent
     return mat
 
 
 def get_position_from_hips(top, node_name):
     '''
-    获取单个节点相对于top的信息
-    角度从自己读取
-    长度从子节点读取
+    get every node's info from top
     '''
     node = FBFindModelByLabelName(top)
     v = np.asmatrix([0, 0, 1]).T
@@ -39,27 +37,27 @@ def get_position_from_hips(top, node_name):
         cos = math.cos(node.Rotation[AXIS2]/180*math.pi)
         sin = math.sin(node.Rotation[AXIS2]/180*math.pi)
         l = math.sqrt(node_child.Translation[AXIS0]**2 + node_child.Translation[AXIS1]**2)
-        mat = mat@np.array([[cos, -sin, l*cos], [sin, cos, l*sin], [0, 0, 1]])
+        mat = np.dot(mat, np.array([[cos, -sin, l*cos], [sin, cos, l*sin], [0, 0, 1]]))
         if node.LongName == node_name:
             break
         node = node.Children[0]
         node_child = node.Children[0]
-    return mat@v
+    return np.dot(mat, v)
 
 
 def get_all_positions_from_hips(top, node_name_list, const_mat):
     '''
-    以根骨为原点，获取list里的节点相对于根骨的世界坐标
+    get positions from root
     '''
     positions = []
     for node_name in node_name_list:
-        positions.append(const_mat@get_position_from_hips(top, node_name))
+        positions.append(np.dot(const_mat, get_position_from_hips(top, node_name)))
     return positions
 
 
 def get_path_to_node(node_name_list, top, target_name):
     '''
-    寻找到指定节点的唯一路径，返回途径的节点列表
+    get path
     '''
     node = FBFindModelByLabelName(target_name)
     while node.LongName != top:
@@ -71,7 +69,7 @@ def get_path_to_node(node_name_list, top, target_name):
 
 def caculate_distance(points0, points1):
     '''
-    计算两组点的距离和
+    caculate distance
     '''
     distance = 0
     assert len(points0) == len(points0)
@@ -82,7 +80,7 @@ def caculate_distance(points0, points1):
 
 def get_rotation(node_name_list):
     '''
-    获得list里每个节点的旋转角度，返回弧度制
+    get angle
     '''
     theta = []
     for node_name in node_name_list:
@@ -93,7 +91,7 @@ def get_rotation(node_name_list):
 
 def set_rotation(node_name_list, theta):
     '''
-    设置list里每个节点的旋转角度，使用弧度制
+    set angle
     '''
     for node_name, t in zip(node_name_list, theta):
         node = FBFindModelByLabelName(node_name)
@@ -108,7 +106,7 @@ def set_rotation(node_name_list, theta):
 
 def get_length(node_name_list):
     '''
-    获得list里每个节点的长度
+    get length
     '''
     length = []
     for node_name in node_name_list:
@@ -121,7 +119,7 @@ def get_length(node_name_list):
 
 def del_matrix(num, index, theta, length, const_mat):
     '''
-    对第num个点的第index个变量求偏导
+    caculate del of num's point's index
     '''
     del_mat = np.eye(3)
     for i in range(num+1):
@@ -129,31 +127,31 @@ def del_matrix(num, index, theta, length, const_mat):
         s = math.sin(theta[i])
         if i == index:
             tmp = np.array([[-s, -c, -length[i]*s], [c, -s, length[i]*c], [0, 0, 0]])
-            del_mat = del_mat@tmp
+            del_mat = np.dot(del_mat, tmp)
         else:
             tmp = np.array([[c, -s, length[i]*c], [s, c, length[i]*s], [0, 0, 1]])
-            del_mat = del_mat@tmp
-    return const_mat@del_mat
+            del_mat = np.dot(del_mat, tmp)
+    return np.dot(const_mat, del_mat)
 
 
-def loop(LOOP, name, top, root):
+def loop(LOOP, namespace, name, top, root):
     '''
-    迭代
+    loop
     '''
-    # 标准列向量
+    # normal vector
     v = np.asmatrix([0, 0, 1]).T
 
-    # 初始化
-    target_name = 'target:' + name
-    target_top = 'target:' + top
-    const_mat = get_top_from_root(target_top, 'target:' + root)
+    # init
+    target_name = namespace + name[9:]
+    target_top = namespace + top[9:]
+    const_mat = get_top_from_root(target_top, namespace + root[9:])
     t_node_name_list = []
     get_path_to_node(t_node_name_list, target_top, target_name)
     target_positions = get_all_positions_from_hips(target_top, t_node_name_list, const_mat)
     
-    source_name = 'source:' + name
-    source_top = 'source:' + top
-    const_mat = get_top_from_root(source_top, 'source:' + root)
+    source_name = namespace + name
+    source_top = namespace + top
+    const_mat = get_top_from_root(source_top, namespace + root)
     node_name_list = []
     get_path_to_node(node_name_list, source_top, source_name)
     length = get_length(node_name_list)
@@ -165,23 +163,22 @@ def loop(LOOP, name, top, root):
     source_positions = [scale*p for p in source_positions]
 
     n = len(node_name_list)
-    # 迭代
+    # loop
     for loop_time in range(LOOP):
-        # 距离求和
         # caculate_distance(source_positions, target_positions)
-        # theta偏导矩阵
+        # del theta
         mat_p = [[None]*n for i in range(n)]
         for i in range(n):
             for j in range(i+1):
                 mat_p[i][j] = del_matrix(i, j, theta, length, const_mat)
-        # 偏导矩阵求x,y坐标对theta的偏导
+        # del x and y
         x_p = [[None]*n for i in range(n)]
         y_p = [[None]*n for i in range(n)]
         for i in range(n):
             for j in range(i+1):
-                x_p[i][j] = mat_p[i][j][0]@v
-                y_p[i][j] = mat_p[i][j][1]@v  
-        # 求distance偏导
+                x_p[i][j] = np.dot(mat_p[i][j][0], v)
+                y_p[i][j] = np.dot(mat_p[i][j][1], v)
+        # del distance
         del_theta = []
         for j in range(n):
             delta_D = 0
@@ -202,13 +199,13 @@ def loop(LOOP, name, top, root):
 
 def choose_scale():
     '''
-    确定缩放大小
+    choose scale
     '''
     top_point = FBVector3d()
-    obj = FBFindModelByLabelName('target:Skeleton0_HeadEnd')
+    obj = FBFindModelByLabelName('LiuJin:Skeleton0_HeadEnd')
     obj.GetVector(top_point, FBModelTransformationType.kModelTranslation)
     bottom_point = FBVector3d()
-    obj = FBFindModelByLabelName('target:Skeleton0RightToeBase')
+    obj = FBFindModelByLabelName('LiuJin:Skeleton0RightToeBase')
     obj.GetVector(bottom_point, FBModelTransformationType.kModelTranslation)
     target_delta_len = (top_point - bottom_point)[1]
 
@@ -224,39 +221,44 @@ def choose_scale():
     return math.pow(scale, 1/11)
 
 
-if __name__ in ('__main__', 'builtins'):
-    # 移动
-    root = FBFindModelByLabelName('source:Skeleton0Hips')
-    t_root = FBFindModelByLabelName('target:Skeleton0Hips')
-    root.Translation = FBVector3d(t_root.Translation)
-    # 缩放
-    scale = choose_scale()
-    scale_vec = FBVector3d(scale, scale, scale)
-    root.Scaling = scale_vec
-    print(scale)
-    # XY
-    print("deal with XY-flat")
-    loop(1000, 'Skeleton0LeftForeArm', 'Skeleton0LeftShoulder', 'Skeleton0Spine3')
-    loop(1000, 'Skeleton0RightForeArm', 'Skeleton0RightShoulder', 'Skeleton0Spine3')
-    loop(1000, 'Skeleton0LeftLeg', 'Skeleton0LeftUpLeg', 'Skeleton0LeftUpLeg')
-    loop(1000, 'Skeleton0RightLeg', 'Skeleton0RightUpLeg', 'Skeleton0RightUpLeg')
-    # YZ
-    print("deal with YZ-flat")
-    AXIS0 = 1
-    AXIS1 = 2
-    AXIS2 = 0
-    loop(1000, 'Skeleton0LeftForeArm', 'Skeleton0LeftShoulder', 'Skeleton0Spine3')
-    loop(1000, 'Skeleton0RightForeArm', 'Skeleton0RightShoulder', 'Skeleton0Spine3')
-    loop(1000, 'Skeleton0LeftLeg', 'Skeleton0LeftUpLeg', 'Skeleton0LeftUpLeg')
-    loop(1000, 'Skeleton0RightLeg', 'Skeleton0RightUpLeg', 'Skeleton0RightUpLeg')
-    # ZX
-    print("deal with ZX-flat")
-    AXIS0 = 2
-    AXIS1 = 0
-    AXIS2 = 1
-    loop(1000, 'Skeleton0LeftForeArm', 'Skeleton0LeftShoulder', 'Skeleton0Spine3')
-    loop(1000, 'Skeleton0RightForeArm', 'Skeleton0RightShoulder', 'Skeleton0Spine3')
-    loop(1000, 'Skeleton0LeftLeg', 'Skeleton0LeftUpLeg', 'Skeleton0LeftUpLeg')
-    loop(1000, 'Skeleton0RightLeg', 'Skeleton0RightUpLeg', 'Skeleton0RightUpLeg')
+if __name__ in ('__main__', '__builtin__'):
+    # namespace
+    namespaces = ['LiuJin:']
+    for name in namespaces:
+        # move
+        root = FBFindModelByLabelName(name + 'Skeleton0Hips')
+        t_root = FBFindModelByLabelName(name + 'Hips')
+        root.Translation = FBVector3d(t_root.Translation)
+        root.Rotation = FBVector3d(t_root.Rotation)
+        # scale
+        #scale = choose_scale()
+        scale = root.Scaling[0]
+        scale_vec = FBVector3d(scale, scale, scale)
+        root.Scaling = scale_vec
+        print(scale)
+        # XY
+        print("deal with XY-flat")
+        loop(1000, name, 'Skeleton0LeftForeArm', 'Skeleton0LeftShoulder', 'Skeleton0Spine3')
+        loop(1000, name, 'Skeleton0RightForeArm', 'Skeleton0RightShoulder', 'Skeleton0Spine3')
+        loop(1000, name, 'Skeleton0LeftLeg', 'Skeleton0LeftUpLeg', 'Skeleton0LeftUpLeg')
+        loop(1000, name, 'Skeleton0RightLeg', 'Skeleton0RightUpLeg', 'Skeleton0RightUpLeg')
+        # YZ
+        print("deal with YZ-flat")
+        AXIS0 = 1
+        AXIS1 = 2
+        AXIS2 = 0
+        loop(1000, name, 'Skeleton0LeftForeArm', 'Skeleton0LeftShoulder', 'Skeleton0Spine3')
+        loop(1000, name, 'Skeleton0RightForeArm', 'Skeleton0RightShoulder', 'Skeleton0Spine3')
+        loop(1000, name, 'Skeleton0LeftLeg', 'Skeleton0LeftUpLeg', 'Skeleton0LeftUpLeg')
+        loop(1000, name, 'Skeleton0RightLeg', 'Skeleton0RightUpLeg', 'Skeleton0RightUpLeg')
+        # ZX
+        print("deal with ZX-flat")
+        AXIS0 = 2
+        AXIS1 = 0
+        AXIS2 = 1
+        loop(1000, name, 'Skeleton0LeftForeArm', 'Skeleton0LeftShoulder', 'Skeleton0Spine3')
+        loop(1000, name, 'Skeleton0RightForeArm', 'Skeleton0RightShoulder', 'Skeleton0Spine3')
+        loop(1000, name, 'Skeleton0LeftLeg', 'Skeleton0LeftUpLeg', 'Skeleton0LeftUpLeg')
+        loop(1000, name, 'Skeleton0RightLeg', 'Skeleton0RightUpLeg', 'Skeleton0RightUpLeg')
 
     print("DONE")
