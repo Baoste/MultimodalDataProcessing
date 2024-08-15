@@ -4,66 +4,101 @@ from pyfbsdk_additions import *
 import math
 import numpy as np
 
-AXIS0 = 0
-AXIS1 = 1
-AXIS2 = 2
-
-def get_top_from_root(top, root):
+def get_position_from_origin(namespace, node_name):
     '''
-    change axis from top to root
+    retrurn Vector3d of position from origin
     '''
-    node = FBFindModelByLabelName(top)
-    v = np.asmatrix([0, 0, 1]).T
-    mat = np.eye(3)
-    while node.LongName != root:
-        node_parent = node.Parent
-        cos = math.cos(node_parent.Rotation[AXIS2]/180*math.pi)
-        sin = math.sin(node_parent.Rotation[AXIS2]/180*math.pi)
-        l = math.sqrt(node.Translation[AXIS0]**2 + node.Translation[AXIS1]**2)
-        mat = np.dot(np.array([[cos, -sin, l*cos], [sin, cos, l*sin], [0, 0, 1]]), mat)
+    v = np.asmatrix([0, 0, 0, 1]).T
+    mat = np.eye(4)
+    #print(namespace + ':' + node_name)
+    node = FBFindModelByLabelName(namespace + ':' + node_name)
+    node_parent = node.Parent
+    while node_parent:
+        x_r = node_parent.Rotation[0] / 180 * math.pi
+        y_r = node_parent.Rotation[1] / 180 * math.pi
+        z_r = node_parent.Rotation[2] / 180 * math.pi
+        mat_x = np.array([[1, 0, 0, 0], 
+                        [0, math.cos(x_r), -math.sin(x_r), 0], 
+                        [0, math.sin(x_r), math.cos(x_r), 0],
+                        [0, 0, 0, 1]])
+        mat_y = np.array([[math.cos(y_r), 0, math.sin(y_r), 0], 
+                        [0, 1, 0, 0], 
+                        [-math.sin(y_r), 0, math.cos(y_r),0],
+                        [0, 0, 0, 1]])
+        mat_z = np.array([[math.cos(z_r), -math.sin(z_r), 0, 0], 
+                        [math.sin(z_r), math.cos(z_r), 0, 0],
+                        [0, 0, 1, 0], 
+                        [0, 0, 0, 1]])
+        mat_t = np.array([[1, 0, 0, node.Translation[0]], 
+                        [0, 1, 0, node.Translation[1]],
+                        [0, 0, 1, node.Translation[2]], 
+                        [0, 0, 0, 1]])
+        mat = np.dot(mat_t, mat)
+        mat = np.dot(mat_x, mat)
+        mat = np.dot(mat_y, mat)
+        mat = np.dot(mat_z, mat)
         node = node_parent
-    return mat
-
-
-def get_position_from_hips(top, node_name):
-    '''
-    get every node's info from top
-    '''
-    node = FBFindModelByLabelName(top)
-    v = np.asmatrix([0, 0, 1]).T
-    mat = np.eye(3)
-    node_child = node.Children[0]
-    while True:
-        cos = math.cos(node.Rotation[AXIS2]/180*math.pi)
-        sin = math.sin(node.Rotation[AXIS2]/180*math.pi)
-        l = math.sqrt(node_child.Translation[AXIS0]**2 + node_child.Translation[AXIS1]**2)
-        mat = np.dot(mat, np.array([[cos, -sin, l*cos], [sin, cos, l*sin], [0, 0, 1]]))
-        if node.LongName == node_name:
-            break
-        node = node.Children[0]
-        node_child = node.Children[0]
+        node_parent = node.Parent
+    #print(np.dot(mat, v))
     return np.dot(mat, v)
+    
 
+def get_mat_from_origin_to_top(namespace, top_name):
+    '''
+    retrurn mat from origin to top
+    '''
+    mat = np.eye(4)
+    
+    node = FBFindModelByLabelName(namespace + ':' + top_name)
+    node_parent = node.Parent
+    while node_parent:
+        x_r = node_parent.Rotation[0] / 180 * math.pi
+        y_r = node_parent.Rotation[1] / 180 * math.pi
+        z_r = node_parent.Rotation[2] / 180 * math.pi
+        mat_x = np.array([[1, 0, 0, 0], 
+                        [0, math.cos(x_r), -math.sin(x_r), 0], 
+                        [0, math.sin(x_r), math.cos(x_r), 0],
+                        [0, 0, 0, 1]])
+        mat_y = np.array([[math.cos(y_r), 0, math.sin(y_r), 0], 
+                        [0, 1, 0, 0], 
+                        [-math.sin(y_r), 0, math.cos(y_r),0],
+                        [0, 0, 0, 1]])
+        mat_z = np.array([[math.cos(z_r), -math.sin(z_r), 0, 0], 
+                        [math.sin(z_r), math.cos(z_r), 0, 0],
+                        [0, 0, 1, 0], 
+                        [0, 0, 0, 1]])
+        mat_t = np.array([[1, 0, 0, node.Translation[0]], 
+                        [0, 1, 0, node.Translation[1]],
+                        [0, 0, 1, node.Translation[2]], 
+                        [0, 0, 0, 1]])
+        mat = np.dot(mat_t, mat)
+        mat = np.dot(mat_x, mat)
+        mat = np.dot(mat_y, mat)
+        mat = np.dot(mat_z, mat)
+        node = node_parent
+        node_parent = node.Parent
 
-def get_all_positions_from_hips(top, node_name_list, const_mat):
-    '''
-    get positions from root
-    '''
+    return mat
+    
+
+def get_positions_of_path(node_name_list):
     positions = []
-    for node_name in node_name_list:
-        positions.append(np.dot(const_mat, get_position_from_hips(top, node_name)))
+    for node in node_name_list:
+        namespace = node.split(':')[0]
+        node_name = node.split(':')[1]
+        positions.append(get_position_from_origin(namespace, node_name))
     return positions
 
 
-def get_path_to_node(node_name_list, top, target_name):
+def get_path(node_name_list, namespace, end, top):
     '''
     get path
+    [top->end]
     '''
-    node = FBFindModelByLabelName(target_name)
-    while node.LongName != top:
+    node = FBFindModelByLabelName(namespace + ':' + end)
+    while node.LongName != namespace + ':' + top:
         node_name_list.append(node.LongName)
         node = node.Parent
-    node_name_list.append(node.LongName)
     node_name_list.reverse()
 
 
@@ -78,187 +113,185 @@ def caculate_distance(points0, points1):
     print('distance: {0}'.format(distance))
 
 
+def get_translation(node_name_list):
+    '''
+    get translation
+    from top(included) to end(not included)
+    '''
+    trans = []
+    for node_name in node_name_list:
+        node = FBFindModelByLabelName(node_name)
+        trans.append([node.Translation[i] for i in range(3)])
+    return trans
+
+
 def get_rotation(node_name_list):
     '''
     get angle
+    from top(included) to end(not included)
     '''
     theta = []
     for node_name in node_name_list:
         node = FBFindModelByLabelName(node_name)
-        theta.append(node.Rotation[AXIS2]/180*math.pi)
+        theta.append([node.Parent.Rotation[i]/180*math.pi for i in range(3)])
     return theta
 
 
 def set_rotation(node_name_list, theta):
     '''
     set angle
+    from top(included) to end(not included)
     '''
-    for node_name, t in zip(node_name_list, theta):
-        node = FBFindModelByLabelName(node_name)
-        if AXIS2 == 2:
-            rot = FBVector3d(node.Rotation[0], node.Rotation[1], t/math.pi*180)
-        elif AXIS2 == 1:
-            rot = FBVector3d(node.Rotation[0], t/math.pi*180, node.Rotation[2])
-        elif AXIS2 == 0:
-            rot = FBVector3d(t/math.pi*180, node.Rotation[1], node.Rotation[2])
+    node_parent_list = [FBFindModelByLabelName(i).Parent for i in node_name_list]
+    for node, t in zip(node_parent_list, theta):
+        rot = FBVector3d(t[0]/math.pi*180, t[1]/math.pi*180, t[2]/math.pi*180)
         node.Rotation = rot
 
 
-def get_length(node_name_list):
-    '''
-    get length
-    '''
-    length = []
-    for node_name in node_name_list:
-        node = FBFindModelByLabelName(node_name)
-        node_child = node.Children[0]
-        l = math.sqrt(node_child.Translation[AXIS0]**2+node_child.Translation[AXIS1]**2)
-        length.append(l)
-    return length
-
-
-def del_matrix(num, index, theta, length, const_mat):
+def del_matrix(const_mat, theta, trans, num, index, k):
     '''
     caculate del of num's point's index
     '''
-    del_mat = np.eye(3)
+    del_mat = np.eye(4)
     for i in range(num+1):
-        c = math.cos(theta[i])
-        s = math.sin(theta[i])
+        mat = np.eye(4)
+        x_r = theta[i][0]
+        y_r = theta[i][1]
+        z_r = theta[i][2]
+        t = trans[i]
+
+        mat_x = np.array([[1, 0, 0, 0], 
+                        [0, math.cos(x_r), -math.sin(x_r), 0], 
+                        [0, math.sin(x_r), math.cos(x_r), 0],
+                        [0, 0, 0, 1]])
+        mat_y = np.array([[math.cos(y_r), 0, math.sin(y_r), 0], 
+                        [0, 1, 0, 0], 
+                        [-math.sin(y_r), 0, math.cos(y_r),0],
+                        [0, 0, 0, 1]])
+        mat_z = np.array([[math.cos(z_r), -math.sin(z_r), 0, 0], 
+                        [math.sin(z_r), math.cos(z_r), 0, 0],
+                        [0, 0, 1, 0], 
+                        [0, 0, 0, 1]])
+        mat_t = np.array([[1, 0, 0, t[0]], 
+                        [0, 1, 0, t[1]],
+                        [0, 0, 1, t[2]], 
+                        [0, 0, 0, 1]])
         if i == index:
-            tmp = np.array([[-s, -c, -length[i]*s], [c, -s, length[i]*c], [0, 0, 0]])
-            del_mat = np.dot(del_mat, tmp)
-        else:
-            tmp = np.array([[c, -s, length[i]*c], [s, c, length[i]*s], [0, 0, 1]])
-            del_mat = np.dot(del_mat, tmp)
+            if k == 0:
+                mat_x = np.array([[0, 0, 0, 0], 
+                                [0, -math.sin(x_r), -math.cos(x_r), 0], 
+                                [0, math.cos(x_r), -math.sin(x_r), 0],
+                                [0, 0, 0, 0]])
+            elif k == 1:
+                mat_y = np.array([[-math.sin(y_r), 0, math.cos(y_r), 0], 
+                                [0, 0, 0, 0], 
+                                [-math.cos(y_r), 0, -math.sin(y_r),0],
+                                [0, 0, 0, 0]])
+            elif k == 2:
+                mat_z = np.array([[-math.sin(z_r), -math.cos(z_r), 0, 0], 
+                                [math.cos(z_r), -math.sin(z_r), 0, 0],
+                                [0, 0, 0, 0], 
+                                [0, 0, 0, 0]])
+
+        mat = np.dot(mat_t, mat)
+        mat = np.dot(mat_x, mat)
+        mat = np.dot(mat_y, mat)
+        mat = np.dot(mat_z, mat)
+        del_mat = np.dot(del_mat, mat)
+    #print(np.dot(const_mat, del_mat))
     return np.dot(const_mat, del_mat)
 
 
-def loop(LOOP, namespace, name, top, root):
+def loop(LOOP, namespace, name, top):
     '''
     loop
     '''
     # normal vector
-    v = np.asmatrix([0, 0, 1]).T
+    v = np.asmatrix([0, 0, 0, 1]).T
 
     # init
-    target_name = namespace + name[9:]
-    target_top = namespace + top[9:]
-    const_mat = get_top_from_root(target_top, namespace + root[9:])
-    t_node_name_list = []
-    get_path_to_node(t_node_name_list, target_top, target_name)
-    target_positions = get_all_positions_from_hips(target_top, t_node_name_list, const_mat)
+    target_node_name_list = []
+    get_path(target_node_name_list, namespace, name[9:], top[9:])
+    target_positions = get_positions_of_path(target_node_name_list)
     
-    source_name = namespace + name
-    source_top = namespace + top
-    const_mat = get_top_from_root(source_top, namespace + root)
+    const_mat = get_mat_from_origin_to_top(namespace, top)
+
     node_name_list = []
-    get_path_to_node(node_name_list, source_top, source_name)
-    length = get_length(node_name_list)
-    length = [scale*l for l in length]
-    theta = get_rotation(t_node_name_list)
+    get_path(node_name_list, namespace, name, top)
+    #theta = get_rotation(target_node_name_list)
+    theta = get_rotation(node_name_list)
+    trans = get_translation(node_name_list)
     set_rotation(node_name_list, theta)
-    theta = np.array(theta)
-    source_positions = get_all_positions_from_hips(source_top, node_name_list, const_mat)
-    source_positions = [scale*p for p in source_positions]
+    source_positions = get_positions_of_path(node_name_list)
 
     n = len(node_name_list)
     # loop
     for loop_time in range(LOOP):
-        # caculate_distance(source_positions, target_positions)
+        #print('-----------------')
+        #caculate_distance(source_positions, target_positions)
         # del theta
-        mat_p = [[None]*n for i in range(n)]
+        mat_p = np.array([[[None]*3]*n]*n)
+        
         for i in range(n):
             for j in range(i+1):
-                mat_p[i][j] = del_matrix(i, j, theta, length, const_mat)
-        # del x and y
-        x_p = [[None]*n for i in range(n)]
-        y_p = [[None]*n for i in range(n)]
+                for k in range(3):
+                    mat_p[i][j][k] = del_matrix(const_mat, theta, trans, i, j, k)
+
+        # del x y z
+        x_p = np.array([[[None]*3]*n]*n)
+        y_p = np.array([[[None]*3]*n]*n)
+        z_p = np.array([[[None]*3]*n]*n)
         for i in range(n):
             for j in range(i+1):
-                x_p[i][j] = np.dot(mat_p[i][j][0], v)
-                y_p[i][j] = np.dot(mat_p[i][j][1], v)
+                for k in range(3):
+                    x_p[i][j][k] = np.dot(mat_p[i][j][k][0], v)
+                    y_p[i][j][k] = np.dot(mat_p[i][j][k][1], v)
+                    z_p[i][j][k] = np.dot(mat_p[i][j][k][2], v)            
+
         # del distance
         del_theta = []
         for j in range(n):
-            delta_D = 0
+            delta_D = np.zeros(3)
             for i in range(j, n):
-                delta_D += -2*target_positions[i][0]*x_p[i][j]+2*source_positions[i][0]*x_p[i][j]
-                delta_D += -2*target_positions[i][1]*y_p[i][j]+2*source_positions[i][1]*y_p[i][j]
-            del_theta.append(delta_D[0, 0])
+                for k in range(3):
+                    delta_D[k] += -2*target_positions[i][0]*x_p[i][j][k]+2*source_positions[i][0]*x_p[i][j][k]
+                    delta_D[k] += -2*target_positions[i][1]*y_p[i][j][k]+2*source_positions[i][1]*y_p[i][j][k]
+                    delta_D[k] += -2*target_positions[i][2]*z_p[i][j][k]+2*source_positions[i][2]*z_p[i][j][k]
+            
+            del_theta.append(delta_D)
         del_theta = np.array(del_theta)
-        # print('del_theta: {0}'.format(del_theta))
-        theta = theta - 0.0001*del_theta
-        # print('theta: {0}'.format(theta))
+        #print('del_theta: {0}'.format(del_theta))
+        theta = theta - 0.00001*del_theta
+        #print('theta: {0}'.format(theta))
         set_rotation(node_name_list, theta)
-        source_positions = get_all_positions_from_hips(source_top, node_name_list, const_mat)
-        source_positions = [scale*p for p in source_positions]
-        length = get_length(node_name_list)
-        length = [scale*l for l in length]
+        source_positions = get_positions_of_path(node_name_list)
 
 
-def choose_scale():
-    '''
-    choose scale
-    '''
-    top_point = FBVector3d()
-    obj = FBFindModelByLabelName('LiuJin:Skeleton0_HeadEnd')
-    obj.GetVector(top_point, FBModelTransformationType.kModelTranslation)
-    bottom_point = FBVector3d()
-    obj = FBFindModelByLabelName('LiuJin:Skeleton0RightToeBase')
-    obj.GetVector(bottom_point, FBModelTransformationType.kModelTranslation)
-    target_delta_len = (top_point - bottom_point)[1]
+def init_jiqiren(namespace):
+    # set to zero
+    zero_vec = FBVector3d(0, 0, 0)
+    rr = FBFindModelByLabelName(namespace + ':jiqiren_Y')
+    rr.PreRotation = zero_vec
+    root = FBFindModelByLabelName(namespace + ':Skeleton0Hips')
+    root.Rotation = zero_vec
+    # set shoulder to same y
+    t_root = FBFindModelByLabelName(namespace + ':Hips')
+    trans_vec = FBVector3d(t_root.Translation[0], t_root.Translation[1], t_root.Translation[2])
+    root.Translation = trans_vec
 
-    top_point = FBVector3d()
-    obj = FBFindModelByLabelName('source:Skeleton0_HeadEnd')
-    obj.GetVector(top_point, FBModelTransformationType.kModelTranslation)
-    bottom_point = FBVector3d()
-    obj = FBFindModelByLabelName('source:Skeleton0RightToeBase')
-    obj.GetVector(bottom_point, FBModelTransformationType.kModelTranslation)
-    source_delta_len = (top_point - bottom_point)[1]
+    t_y = get_position_from_origin(namespace, 'LeftShoulder')
+    s_y = get_position_from_origin(namespace, 'Skeleton0LeftShoulder')
+    trans_vec[1] += (t_y-s_y)[1,0]
+    root.Translation = trans_vec
 
-    scale = target_delta_len / source_delta_len
-    return math.pow(scale, 1/11)
 
 
 if __name__ in ('__main__', '__builtin__'):
-    # namespace
-    namespaces = ['LiuJin:']
-    for name in namespaces:
-        # move
-        root = FBFindModelByLabelName(name + 'Skeleton0Hips')
-        t_root = FBFindModelByLabelName(name + 'Hips')
-        root.Translation = FBVector3d(t_root.Translation)
-        root.Rotation = FBVector3d(t_root.Rotation)
-        # scale
-        #scale = choose_scale()
-        scale = root.Scaling[0]
-        scale_vec = FBVector3d(scale, scale, scale)
-        root.Scaling = scale_vec
-        print(scale)
-        # XY
-        print("deal with XY-flat")
-        loop(1000, name, 'Skeleton0LeftForeArm', 'Skeleton0LeftShoulder', 'Skeleton0Spine3')
-        loop(1000, name, 'Skeleton0RightForeArm', 'Skeleton0RightShoulder', 'Skeleton0Spine3')
-        loop(1000, name, 'Skeleton0LeftLeg', 'Skeleton0LeftUpLeg', 'Skeleton0LeftUpLeg')
-        loop(1000, name, 'Skeleton0RightLeg', 'Skeleton0RightUpLeg', 'Skeleton0RightUpLeg')
-        # YZ
-        print("deal with YZ-flat")
-        AXIS0 = 1
-        AXIS1 = 2
-        AXIS2 = 0
-        loop(1000, name, 'Skeleton0LeftForeArm', 'Skeleton0LeftShoulder', 'Skeleton0Spine3')
-        loop(1000, name, 'Skeleton0RightForeArm', 'Skeleton0RightShoulder', 'Skeleton0Spine3')
-        loop(1000, name, 'Skeleton0LeftLeg', 'Skeleton0LeftUpLeg', 'Skeleton0LeftUpLeg')
-        loop(1000, name, 'Skeleton0RightLeg', 'Skeleton0RightUpLeg', 'Skeleton0RightUpLeg')
-        # ZX
-        print("deal with ZX-flat")
-        AXIS0 = 2
-        AXIS1 = 0
-        AXIS2 = 1
-        loop(1000, name, 'Skeleton0LeftForeArm', 'Skeleton0LeftShoulder', 'Skeleton0Spine3')
-        loop(1000, name, 'Skeleton0RightForeArm', 'Skeleton0RightShoulder', 'Skeleton0Spine3')
-        loop(1000, name, 'Skeleton0LeftLeg', 'Skeleton0LeftUpLeg', 'Skeleton0LeftUpLeg')
-        loop(1000, name, 'Skeleton0RightLeg', 'Skeleton0RightUpLeg', 'Skeleton0RightUpLeg')
-
-    print("DONE")
+    namespace = 'ZiXuan'
+    # init
+    init_jiqiren(namespace)
+    #print('===============')
+    loop(50, namespace, 'Skeleton0RightHand', 'Skeleton0RightShoulder')
+    loop(50, namespace, 'Skeleton0LeftHand', 'Skeleton0LeftShoulder')
+    loop(50, namespace, 'Skeleton0RightFoot', 'Skeleton0RightUpLeg')
+    loop(50, namespace, 'Skeleton0LeftFoot', 'Skeleton0LeftUpLeg')
