@@ -1,5 +1,5 @@
 # MultimodalDataProcessing
-## UnReal导出资源
+## Unreal导出资源
 ExportAsseetsFromUE.py
 1. 更改 root_search_path 为资源所在路径
 2. 更改 export_path 为导出的路径
