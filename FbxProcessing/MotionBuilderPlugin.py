@@ -29,11 +29,17 @@ def get_position_from_origin(namespace, node_name):
                         [math.sin(z_r), math.cos(z_r), 0, 0],
                         [0, 0, 1, 0], 
                         [0, 0, 0, 1]])
+        scale = node_parent.Scaling[0]
+        mat_s = np.array([scale, 0, 0, 0],
+                         [0, scale, 0, 0],
+                         [0, 0, scale, 0],
+                         [0, 0, 0, 1])
         mat_t = np.array([[1, 0, 0, node.Translation[0]], 
                         [0, 1, 0, node.Translation[1]],
                         [0, 0, 1, node.Translation[2]], 
                         [0, 0, 0, 1]])
         mat = np.dot(mat_t, mat)
+        mat = np.dot(mat_s, mat)
         mat = np.dot(mat_x, mat)
         mat = np.dot(mat_y, mat)
         mat = np.dot(mat_z, mat)
@@ -67,11 +73,17 @@ def get_mat_from_origin_to_top(namespace, top_name):
                         [math.sin(z_r), math.cos(z_r), 0, 0],
                         [0, 0, 1, 0], 
                         [0, 0, 0, 1]])
+        scale = node_parent.Scaling[0]
+        mat_s = np.array([scale, 0, 0, 0],
+                         [0, scale, 0, 0],
+                         [0, 0, scale, 0],
+                         [0, 0, 0, 1])
         mat_t = np.array([[1, 0, 0, node.Translation[0]], 
                         [0, 1, 0, node.Translation[1]],
                         [0, 0, 1, node.Translation[2]], 
                         [0, 0, 0, 1]])
         mat = np.dot(mat_t, mat)
+        mat = np.dot(mat_s, mat)
         mat = np.dot(mat_x, mat)
         mat = np.dot(mat_y, mat)
         mat = np.dot(mat_z, mat)
@@ -125,6 +137,17 @@ def get_translation(node_name_list):
     return trans
 
 
+def get_scaling(node_name_list):
+    '''
+    get scaling
+    '''
+    scaling = []
+    for node_name in node_name_list:
+        node = FBFindModelByLabelName(node_name)
+        scaling.append(node.Parent.Scaling[0])
+    return scaling
+
+
 def get_rotation(node_name_list):
     '''
     get angle
@@ -148,7 +171,7 @@ def set_rotation(node_name_list, theta):
         node.Rotation = rot
 
 
-def del_matrix(const_mat, theta, trans, num, index, k):
+def del_matrix(const_mat, theta, trans, scaling, num, index, k):
     '''
     caculate del of num's point's index
     '''
@@ -159,6 +182,7 @@ def del_matrix(const_mat, theta, trans, num, index, k):
         y_r = theta[i][1]
         z_r = theta[i][2]
         t = trans[i]
+        s = scaling[i]
 
         mat_x = np.array([[1, 0, 0, 0], 
                         [0, math.cos(x_r), -math.sin(x_r), 0], 
@@ -176,6 +200,10 @@ def del_matrix(const_mat, theta, trans, num, index, k):
                         [0, 1, 0, t[1]],
                         [0, 0, 1, t[2]], 
                         [0, 0, 0, 1]])
+        mat_s = np.array([[s, 0, 0, 0],
+                          [0, s, 0, 0],
+                          [0, 0, s, 0],
+                          [0, 0, 0, 1]])
         if i == index:
             if k == 0:
                 mat_x = np.array([[0, 0, 0, 0], 
@@ -194,6 +222,7 @@ def del_matrix(const_mat, theta, trans, num, index, k):
                                 [0, 0, 0, 0]])
 
         mat = np.dot(mat_t, mat)
+        mat = np.dot(mat_s, mat)
         mat = np.dot(mat_x, mat)
         mat = np.dot(mat_y, mat)
         mat = np.dot(mat_z, mat)
@@ -221,6 +250,7 @@ def loop(LOOP, namespace, name, top):
     #theta = get_rotation(target_node_name_list)
     theta = get_rotation(node_name_list)
     trans = get_translation(node_name_list)
+    scaling = get_scaling(node_name_list)
     set_rotation(node_name_list, theta)
     source_positions = get_positions_of_path(node_name_list)
 
@@ -235,7 +265,7 @@ def loop(LOOP, namespace, name, top):
         for i in range(n):
             for j in range(i+1):
                 for k in range(3):
-                    mat_p[i][j][k] = del_matrix(const_mat, theta, trans, i, j, k)
+                    mat_p[i][j][k] = del_matrix(const_mat, theta, trans, scaling, i, j, k)
 
         # del x y z
         x_p = np.array([[[None]*3]*n]*n)
@@ -268,12 +298,22 @@ def loop(LOOP, namespace, name, top):
 
 
 def init_jiqiren(namespace):
-    # set to zero
+    # set pre rotation to zero
     zero_vec = FBVector3d(0, 0, 0)
     rr = FBFindModelByLabelName(namespace + ':jiqiren_Y')
     rr.PreRotation = zero_vec
     root = FBFindModelByLabelName(namespace + ':Skeleton0Hips')
     root.Rotation = zero_vec
+    # set scaling
+    t_x1 = get_position_from_origin(namespace, 'Spine3')
+    t_x2 = get_position_from_origin(namespace, 'finger???')
+    s_x1 = get_position_from_origin(namespace, 'Skeleton0Spine3')
+    s_x2 = get_position_from_origin(namespace, 'Skeleton0finger???')
+    t_len = np.linalg.norm(t_x1 - t_x2)
+    s_len = np.linalg.norm(s_x1 - s_x2)
+    scale = math.pow(t_len/s_len, 1/5)
+    scale_vec = FBVector3d(scale, scale, scale)
+    root.Scaling = scale_vec
     # set shoulder to same y
     t_root = FBFindModelByLabelName(namespace + ':Hips')
     trans_vec = FBVector3d(t_root.Translation[0], t_root.Translation[1], t_root.Translation[2])
@@ -287,11 +327,11 @@ def init_jiqiren(namespace):
 
 
 if __name__ in ('__main__', '__builtin__'):
-    namespace = 'ZiXuan'
-    # init
-    init_jiqiren(namespace)
-    #print('===============')
-    loop(50, namespace, 'Skeleton0RightHand', 'Skeleton0RightShoulder')
-    loop(50, namespace, 'Skeleton0LeftHand', 'Skeleton0LeftShoulder')
-    loop(50, namespace, 'Skeleton0RightFoot', 'Skeleton0RightUpLeg')
-    loop(50, namespace, 'Skeleton0LeftFoot', 'Skeleton0LeftUpLeg')
+    namespaces = ['ZiXuan', 'LiuJin']
+    for namespace in namespaces:
+        # init
+        init_jiqiren(namespace)
+        loop(50, namespace, 'Skeleton0RightHand', 'Skeleton0RightShoulder')
+        loop(50, namespace, 'Skeleton0LeftHand', 'Skeleton0LeftShoulder')
+        loop(50, namespace, 'Skeleton0RightFoot', 'Skeleton0RightUpLeg')
+        loop(50, namespace, 'Skeleton0LeftFoot', 'Skeleton0LeftUpLeg')
