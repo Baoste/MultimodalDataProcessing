@@ -1,7 +1,7 @@
 from pyfbsdk import *
 from pyfbsdk_additions import *
 
-import math
+import math, re
 import numpy as np
 
 def get_position_from_origin(namespace, node_name):
@@ -30,10 +30,10 @@ def get_position_from_origin(namespace, node_name):
                         [0, 0, 1, 0], 
                         [0, 0, 0, 1]])
         scale = node_parent.Scaling[0]
-        mat_s = np.array([scale, 0, 0, 0],
+        mat_s = np.array([[scale, 0, 0, 0],
                          [0, scale, 0, 0],
                          [0, 0, scale, 0],
-                         [0, 0, 0, 1])
+                         [0, 0, 0, 1]])
         mat_t = np.array([[1, 0, 0, node.Translation[0]], 
                         [0, 1, 0, node.Translation[1]],
                         [0, 0, 1, node.Translation[2]], 
@@ -74,10 +74,10 @@ def get_mat_from_origin_to_top(namespace, top_name):
                         [0, 0, 1, 0], 
                         [0, 0, 0, 1]])
         scale = node_parent.Scaling[0]
-        mat_s = np.array([scale, 0, 0, 0],
+        mat_s = np.array([[scale, 0, 0, 0],
                          [0, scale, 0, 0],
                          [0, 0, scale, 0],
-                         [0, 0, 0, 1])
+                         [0, 0, 0, 1]])
         mat_t = np.array([[1, 0, 0, node.Translation[0]], 
                         [0, 1, 0, node.Translation[1]],
                         [0, 0, 1, node.Translation[2]], 
@@ -240,7 +240,9 @@ def loop(LOOP, namespace, name, top):
 
     # init
     target_node_name_list = []
-    get_path(target_node_name_list, namespace, name[9:], top[9:])
+    t_name = re.split(r'[0_]', name)
+    t_top = re.split(r'[0_]', top)
+    get_path(target_node_name_list, namespace, t_name[-1], t_top[-1])
     target_positions = get_positions_of_path(target_node_name_list)
     
     const_mat = get_mat_from_origin_to_top(namespace, top)
@@ -306,9 +308,9 @@ def init_jiqiren(namespace):
     root.Rotation = zero_vec
     # set scaling
     t_x1 = get_position_from_origin(namespace, 'Spine3')
-    t_x2 = get_position_from_origin(namespace, 'finger???')
+    t_x2 = get_position_from_origin(namespace, 'LeftHandMiddle1')
     s_x1 = get_position_from_origin(namespace, 'Skeleton0Spine3')
-    s_x2 = get_position_from_origin(namespace, 'Skeleton0finger???')
+    s_x2 = get_position_from_origin(namespace, 'Skeleton0_LeftHandMiddle1')
     t_len = np.linalg.norm(t_x1 - t_x2)
     s_len = np.linalg.norm(s_x1 - s_x2)
     scale = math.pow(t_len/s_len, 1/5)
@@ -327,11 +329,16 @@ def init_jiqiren(namespace):
 
 
 if __name__ in ('__main__', '__builtin__'):
-    namespaces = ['ZiXuan', 'LiuJin']
+    namespaces = ['ZiXuan']
+    loop_time = 500
     for namespace in namespaces:
         # init
         init_jiqiren(namespace)
-        loop(50, namespace, 'Skeleton0RightHand', 'Skeleton0RightShoulder')
-        loop(50, namespace, 'Skeleton0LeftHand', 'Skeleton0LeftShoulder')
-        loop(50, namespace, 'Skeleton0RightFoot', 'Skeleton0RightUpLeg')
-        loop(50, namespace, 'Skeleton0LeftFoot', 'Skeleton0LeftUpLeg')
+        loop(loop_time, namespace, 'Skeleton0RightHand', 'Skeleton0RightShoulder')
+        loop(loop_time, namespace, 'Skeleton0_RightHandMiddle1', 'Skeleton0RightHand')
+        loop(loop_time, namespace, 'Skeleton0LeftHand', 'Skeleton0LeftShoulder')
+        loop(loop_time, namespace, 'Skeleton0_LeftHandMiddle1', 'Skeleton0LeftHand')
+        loop(loop_time, namespace, 'Skeleton0RightFoot', 'Skeleton0RightUpLeg')
+        loop(loop_time, namespace, 'Skeleton0RightToeBase', 'Skeleton0RightFoot')
+        loop(loop_time, namespace, 'Skeleton0LeftFoot', 'Skeleton0LeftUpLeg')
+        loop(loop_time, namespace, 'Skeleton0LeftToeBase', 'Skeleton0LeftFoot')
