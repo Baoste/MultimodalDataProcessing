@@ -308,14 +308,16 @@ def init_jiqiren(namespace):
     root.Rotation = zero_vec
     # set scaling
     t_x1 = get_position_from_origin(namespace, 'Spine3')
-    t_x2 = get_position_from_origin(namespace, 'LeftHandMiddle1')
+    t_x2 = get_position_from_origin(namespace, 'LeftHand')
     s_x1 = get_position_from_origin(namespace, 'Skeleton0Spine3')
-    s_x2 = get_position_from_origin(namespace, 'Skeleton0_LeftHandMiddle1')
+    s_x2 = get_position_from_origin(namespace, 'Skeleton0LeftHand')
     t_len = np.linalg.norm(t_x1 - t_x2)
     s_len = np.linalg.norm(s_x1 - s_x2)
-    scale = math.pow(t_len/s_len, 1/5)
+    scale = t_len/s_len
     scale_vec = FBVector3d(scale, scale, scale)
-    root.Scaling = scale_vec
+    # only change one time
+    if root.Scaling[0] == 1:
+        root.Scaling = scale_vec
     # set shoulder to same y
     t_root = FBFindModelByLabelName(namespace + ':Hips')
     trans_vec = FBVector3d(t_root.Translation[0], t_root.Translation[1], t_root.Translation[2])
@@ -339,6 +341,6 @@ if __name__ in ('__main__', '__builtin__'):
         loop(loop_time, namespace, 'Skeleton0LeftHand', 'Skeleton0LeftShoulder')
         loop(loop_time, namespace, 'Skeleton0_LeftHandMiddle1', 'Skeleton0LeftHand')
         loop(loop_time, namespace, 'Skeleton0RightFoot', 'Skeleton0RightUpLeg')
-        loop(loop_time, namespace, 'Skeleton0RightToeBase', 'Skeleton0RightFoot')
+        #loop(loop_time, namespace, 'Skeleton0RightToeBase', 'Skeleton0RightFoot')
         loop(loop_time, namespace, 'Skeleton0LeftFoot', 'Skeleton0LeftUpLeg')
-        loop(loop_time, namespace, 'Skeleton0LeftToeBase', 'Skeleton0LeftFoot')
+        #loop(loop_time, namespace, 'Skeleton0LeftToeBase', 'Skeleton0LeftFoot')
